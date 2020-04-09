@@ -18,6 +18,6 @@ WORKDIR /bin
 
 COPY --from=builder /bin/prometheus-exporter .
 
-EXPOSE     9055
+EXPOSE 9055
 
 ENTRYPOINT [ "/bin/prometheus-exporter" ]

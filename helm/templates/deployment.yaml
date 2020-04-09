@@ -1,0 +1,92 @@
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: {{ template "rethinkdb_exporter.fullname" . }}
+  labels:
+    app: {{ template "rethinkdb_exporter.name" . }}
+    chart: {{ template "rethinkdb_exporter.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ template "rethinkdb_exporter.name" . }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "rethinkdb_exporter.name" . }}
+        release: {{ .Release.Name }}
+    spec:
+      serviceAccountName: {{ template "rethinkdb_exporter.serviceAccountName" . }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.env }}
+          env:
+{{ toYaml .Values.env | indent 10}}
+          {{- end }}
+          args: [
+            "--db.address={{ .Values.rethinkdb_exporter.dbaddr }}",
+            {{- if .Values.rethinkdb_exporter.stats_table_estimates }}
+            "--stats.table-estimates",
+            {{- end }}
+            {{- if .Values.rethinkdb_exporter.log.debug }}
+            "--log.debug=true",
+            {{- end }}            
+            "--db.enable-tls={{ .Values.rethinkdb_exporter.dbtls }}",
+            "--db.ca={{ .Values.rethinkdb_exporter.ca }}",
+            "--db.cert={{ .Values.rethinkdb_exporter.cert }}",
+            "--db.key={{ .Values.rethinkdb_exporter.key }}"
+          ]
+          securityContext:
+            readOnlyRootFilesystem: true
+          ports:
+            - name: {{ .Values.service.name }}
+              containerPort: {{ .Values.service.containerPort }}
+              protocol: {{ .Values.service.protocol }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.service.name }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.service.name }}
+          volumeMounts:
+            - name: ucpcerts
+              mountPath: /tmp/ucpcerts
+              readOnly: true
+            {{- if .Values.extraVolumeMounts }}
+{{ toYaml .Values.extraVolumeMounts | indent 12 }}
+            {{- end }}              
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- if .Values.image.pullSecrets }}
+      imagePullSecrets:
+      {{- range .Values.image.pullSecrets }}
+        - name: {{ . }}
+      {{- end }}
+      {{- end }}
+      volumes:
+      - hostPath:
+          path: {{ .Values.certs.hostPath }}
+          type: ""
+        name: ucpcerts
+      {{- if .Values.extraVolumes }}
+{{ toYaml .Values.extraVolumes | indent 6 }}
+      {{- end }}
